@@ -252,7 +252,43 @@ async function moveCal(n){if(state.calendarView==='month')state.calendarCursor=n
 $('#calPrevBtn').addEventListener('click',()=>moveCal(-1));$('#calNextBtn').addEventListener('click',()=>moveCal(1));$('#calTodayBtn').addEventListener('click',async()=>{state.calendarCursor=new Date();if(state.token)await loadCalendarsAndEvents();else renderCalendarEvents()});
 $$('.cal-view').forEach(b=>b.addEventListener('click',async()=>{$$('.cal-view').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.calendarView=b.dataset.view;if(state.token)await loadCalendarsAndEvents();else renderCalendarEvents()}));
 
-async function loadTaskListsAndTasks(){const lists=await api('/tasks/v1/users/@me/lists?maxResults=100');state.taskLists={};for(const wanted of ['Family','Emily Daily','Eric','Shopping']){let list=(lists.items||[]).find(x=>x.title===wanted);if(!list){list=await api('/tasks/v1/users/@me/lists',{method:'POST',body:JSON.stringify({title:wanted})})}const tasks=await api('/tasks/v1/lists/'+encodeURIComponent(list.id)+'/tasks?showCompleted=true&showHidden=true&maxResults=100');state.taskLists[wanted]={...list,tasks:(tasks.items||[])}}renderTasks()}
+async function loadTaskListsAndTasks(){
+ const lists=await api('/tasks/v1/users/@me/lists?maxResults=100');
+ state.taskLists={};
+
+ for(const wanted of ['Family','Emily Daily','Eric','Shopping']){
+  let list=(lists.items||[]).find(x=>x.title===wanted);
+  if(!list){
+   list=await api('/tasks/v1/users/@me/lists',{
+    method:'POST',
+    body:JSON.stringify({title:wanted})
+   });
+  }
+
+  const tasks=await api('/tasks/v1/lists/'+encodeURIComponent(list.id)+'/tasks?showCompleted=true&showHidden=true&maxResults=100');
+  const serverTasks=(tasks.items||[]);
+
+  // Merge locally remembered completed tasks in case Google temporarily omits them
+  // from the list response immediately after completion.
+  const cacheKey='completedTaskCache:'+wanted;
+  let cached=[];
+  try{cached=JSON.parse(localStorage.getItem(cacheKey)||'[]')}catch(_){cached=[]}
+
+  const byId=new Map(serverTasks.map(t=>[t.id,t]));
+  for(const t of cached){
+   if(t&&t.id&&!byId.has(t.id))byId.set(t.id,t);
+  }
+
+  const merged=[...byId.values()];
+  const completedForCache=merged.filter(t=>t.status==='completed').slice(-200);
+  localStorage.setItem(cacheKey,JSON.stringify(completedForCache));
+
+  state.taskLists[wanted]={...list,tasks:merged};
+ }
+
+ renderTasks();
+}
+
 function taskDate(t){
  if(!t.due)return null;
  const d=new Date(t.due);
@@ -297,14 +333,38 @@ function renderList(name,selector,filter,showDue){
  }
 }
 async function setTaskCompleted(listName,taskId,completed){
+ const list=state.taskLists[listName];
+ if(!list)return;
+
+ const task=(list.tasks||[]).find(t=>t.id===taskId);
+ if(!task)return;
+
+ const previousStatus=task.status;
+ task.status=completed?'completed':'needsAction';
+
+ // Re-render immediately so the checked item stays visible and is crossed out.
+ renderTasks();
+
  try{
-  const list=state.taskLists[listName];
-  await api('/tasks/v1/lists/'+encodeURIComponent(list.id)+'/tasks/'+encodeURIComponent(taskId),{
+  const updated=await api('/tasks/v1/lists/'+encodeURIComponent(list.id)+'/tasks/'+encodeURIComponent(taskId),{
    method:'PATCH',
    body:JSON.stringify({status:completed?'completed':'needsAction'})
   });
-  await loadTaskListsAndTasks();
- }catch(e){setStatus(e.message,false,true)}
+
+  // Keep Google's returned task data, but do not reload the whole list.
+  const i=list.tasks.findIndex(t=>t.id===taskId);
+  if(i>=0) list.tasks[i]={...list.tasks[i],...updated,status:completed?'completed':'needsAction'};
+
+  const cacheKey='completedTaskCache:'+listName;
+  const completedTasks=(list.tasks||[]).filter(t=>t.status==='completed').slice(-200);
+  localStorage.setItem(cacheKey,JSON.stringify(completedTasks));
+
+  renderTasks();
+ }catch(e){
+  task.status=previousStatus;
+  renderTasks();
+  setStatus(e.message,false,true);
+ }
 }
 
 $$('.add-task').forEach(btn=>btn.addEventListener('click',()=>openTaskDialog(btn.dataset.list)));
@@ -322,5 +382,5 @@ function restartPhotoTimer(){clearInterval(state.photoTimer);const sec=Number(lo
 function renderAll(){renderCalendar();renderTasks()}
 function escapeHtml(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
 
-if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=20260820-3').catch(console.warn);
+if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=20260820-4').catch(console.warn);
 window.addEventListener('load',()=>{loadPhotos();restartPhotoTimer();resetIdleTimer();setTimeout(()=>{if(localStorage.getItem('googleClientId')) initGoogleClient()},900)});

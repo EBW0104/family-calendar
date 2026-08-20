@@ -1,9 +1,9 @@
-const CACHE_NAME = 'family-display-v20260820-3';
+const CACHE_NAME = 'family-display-v20260820-4';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=20260820-3',
-  './app.js?v=20260820-3',
+  './styles.css?v=20260820-4',
+  './app.js?v=20260820-4',
   './manifest.webmanifest'
 ];
 
