@@ -1,9 +1,9 @@
-const CACHE_NAME = 'family-display-v20260820-4';
+const CACHE_NAME = 'family-display-v20260820-5';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=20260820-4',
-  './app.js?v=20260820-4',
+  './styles.css?v=20260820-5',
+  './app.js?v=20260820-5',
   './manifest.webmanifest'
 ];
 
@@ -26,6 +26,7 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith('/api/')) return; // Never cache auth/token API responses.
 
   event.respondWith(
     fetch(event.request)

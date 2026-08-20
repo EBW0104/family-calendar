@@ -1,14 +1,17 @@
 {
+  "id": "./",
   "name": "Family Display",
-  "short_name": "Family Display",
-  "description": "Family calendar, to-do and shopping display for iPad",
+  "short_name": "Family",
+  "description": "Family calendar, tasks, shopping list, and idle photo display.",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
+  "display_override": ["standalone"],
+  "orientation": "landscape",
   "background_color": "#111827",
-  "theme_color": "#111827",
-  "orientation": "any",
+  "theme_color": "#1f2937",
   "icons": [
-    {"src":"icons/icon-192.png","sizes":"192x192","type":"image/png"},
-    {"src":"icons/icon-512.png","sizes":"512x512","type":"image/png"}
+    {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
   ]
 }

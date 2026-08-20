@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Family Display" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icons/icon-180.png" />
-  <link rel="stylesheet" href="styles.css?v=20260820-4" />
+  <link rel="stylesheet" href="styles.css?v=20260820-5" />
   <title>Family Display</title>
 </head>
 <body>
@@ -104,13 +104,11 @@
     <dialog id="settingsDialog">
       <form method="dialog" class="dialog-card" id="settingsForm">
         <div class="dialog-head"><h2>Settings</h2><button value="cancel" class="icon-button" aria-label="Close">✕</button></div>
-        <label>Google OAuth Web Client ID
-          <input id="clientIdInput" type="text" placeholder="1234...apps.googleusercontent.com" autocomplete="off" />
-        </label>
-        <p class="help">Create a Web application OAuth client in Google Cloud and add this site's HTTPS address to Authorized JavaScript origins.</p>
+        <h3>Google Calendar & Tasks</h3>
+        <p class="help">Google authorization is stored securely on the server. After the one-time setup, this iPad can renew access automatically without reconnecting every hour.</p>
         <div class="button-row">
-          <button id="connectGoogleBtn" type="button">Connect Google</button>
-          <button id="disconnectGoogleBtn" type="button" class="secondary">Disconnect</button>
+          <button id="connectGoogleBtn" type="button">Connect / Pair Google</button>
+          <button id="disconnectGoogleBtn" type="button" class="secondary">Disconnect this iPad</button>
         </div>
 
         <hr />
@@ -157,7 +155,6 @@
     </dialog>
   </div>
 
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="app.js?v=20260820-4"></script>
+  <script src="app.js?v=20260820-5"></script>
 </body>
 </html>
