@@ -44,14 +44,21 @@
 
       <main>
         <section id="calendarPage" class="page active-page">
-          <div class="section-head">
-            <div>
-              <h2>Family Calendar</h2>
-              <p>Combined schedule for the calendars shared with this Google account.</p>
+          <div class="calendar-toolbar">
+            <div class="calendar-nav">
+              <button id="calPrevBtn" class="secondary" type="button">‹</button>
+              <button id="calTodayBtn" class="secondary" type="button">Today</button>
+              <button id="calNextBtn" class="secondary" type="button">›</button>
+              <h2 id="calendarRangeTitle">Family Calendar</h2>
             </div>
-            <div id="calendarFilters" class="filter-row"></div>
+            <div class="calendar-view-buttons">
+              <button class="cal-view active" data-view="week" type="button">Week</button>
+              <button class="cal-view" data-view="month" type="button">Month</button>
+              <button class="cal-view" data-view="agenda" type="button">Schedule</button>
+            </div>
           </div>
-          <div id="calendarEvents" class="event-list empty-state">Connect Google in Settings to load calendars.</div>
+          <div id="calendarFilters" class="filter-row calendar-filter-row"></div>
+          <div id="calendarEvents" class="calendar-surface empty-state">Connect Google in Settings to load calendars.</div>
         </section>
 
         <section id="todoPage" class="page">

@@ -38,10 +38,66 @@ async function refreshAll(){try{await Promise.all([loadCalendarsAndEvents(),load
 $('#refreshBtn').addEventListener('click',refreshAll);
 setInterval(()=>{if(state.token&&Date.now()<state.tokenExpiresAt)refreshAll()},5*60*1000);
 
-async function loadCalendarsAndEvents(){const list=await api('/calendar/v3/users/me/calendarList?minAccessRole=reader');state.calendars=(list.items||[]).filter(c=>c.selected!==false);const now=new Date();const max=new Date(now);max.setDate(max.getDate()+14);const all=[];for(const cal of state.calendars){const p=new URLSearchParams({timeMin:now.toISOString(),timeMax:max.toISOString(),singleEvents:'true',orderBy:'startTime',maxResults:'100'});const data=await api('/calendar/v3/calendars/'+encodeURIComponent(cal.id)+'/events?'+p);for(const ev of (data.items||[])) all.push({...ev,_calendarId:cal.id,_calendarName:cal.summary||'Calendar',_color:cal.backgroundColor||'#64748b'})}state.events=all.sort((a,b)=>eventStart(a)-eventStart(b));renderCalendar()}
+function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x}
+function sameDay(a,b){return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate()}
+function eventEnd(ev){return new Date(ev.end?.dateTime||ev.end?.date||ev.start?.dateTime||ev.start?.date||0)}
+function isAllDay(ev){return !!ev.start?.date&&!ev.start?.dateTime}
+state.calendarView='week';state.calendarCursor=new Date();
+
+function calendarRange(){
+ const c=state.calendarCursor;
+ if(state.calendarView==='month'){const first=new Date(c.getFullYear(),c.getMonth(),1),s=startOfWeek(first),e=addDays(s,42);return[s,e]}
+ if(state.calendarView==='agenda'){const s=new Date(c);s.setHours(0,0,0,0);return[s,addDays(s,30)]}
+ const s=startOfWeek(c);return[s,addDays(s,7)]
+}
+async function loadCalendarsAndEvents(){
+ const list=await api('/calendar/v3/users/me/calendarList?minAccessRole=reader');
+ state.calendars=(list.items||[]).filter(c=>c.selected!==false);
+ const [min,max]=calendarRange(),all=[];
+ for(const cal of state.calendars){
+  const p=new URLSearchParams({timeMin:min.toISOString(),timeMax:max.toISOString(),singleEvents:'true',orderBy:'startTime',maxResults:'250'});
+  const data=await api('/calendar/v3/calendars/'+encodeURIComponent(cal.id)+'/events?'+p);
+  for(const ev of(data.items||[]))all.push({...ev,_calendarId:cal.id,_calendarName:cal.summary||'Calendar',_color:cal.backgroundColor||'#64748b'});
+ }
+ state.events=all.sort((a,b)=>eventStart(a)-eventStart(b));renderCalendar()
+}
 function eventStart(ev){return new Date(ev.start?.dateTime||ev.start?.date||0)}
-function renderCalendar(){const filters=$('#calendarFilters');filters.innerHTML='';for(const c of state.calendars){const b=document.createElement('button');b.className='filter-chip active';b.textContent=c.summary||'Calendar';b.dataset.id=c.id;b.addEventListener('click',()=>{b.classList.toggle('active');renderCalendarEvents()});filters.appendChild(b)}renderCalendarEvents()}
-function renderCalendarEvents(){const activeIds=new Set($$('#calendarFilters .active').map(b=>b.dataset.id));const target=$('#calendarEvents');const items=state.events.filter(e=>activeIds.has(e._calendarId));if(!items.length){target.className='event-list empty-state';target.textContent=state.token?'No upcoming events in the selected calendars.':'Connect Google in Settings to load calendars.';return}target.className='event-list';target.innerHTML='';for(const ev of items){const start=eventStart(ev);const allDay=!!ev.start?.date&&!ev.start?.dateTime;const row=document.createElement('div');row.className='event';row.innerHTML=`<div class="event-time">${allDay?'All day':escapeHtml(fmtTime(start))}</div><div><div class="event-title">${escapeHtml(ev.summary||'(No title)')}</div><div class="event-meta">${escapeHtml(fmtDate(start))}${ev.location?' • '+escapeHtml(ev.location):''}</div></div><div class="cal-chip">${escapeHtml(ev._calendarName)}</div>`;target.appendChild(row)}}
+function activeIds(){return new Set($$('#calendarFilters .active').map(b=>b.dataset.id))}
+function renderCalendar(){
+ const f=$('#calendarFilters'),old=new Set($$('#calendarFilters .active').map(b=>b.dataset.id)),had=f.children.length;f.innerHTML='';
+ for(const c of state.calendars){const b=document.createElement('button');b.className='filter-chip '+(!had||old.has(c.id)?'active':'');b.dataset.id=c.id;b.textContent=c.summary||'Calendar';b.style.setProperty('--cal-color',c.backgroundColor||'#64748b');b.addEventListener('click',()=>{b.classList.toggle('active');renderCalendarEvents()});f.appendChild(b)}
+ renderCalendarEvents()
+}
+function selectedEvents(){const ids=activeIds();return state.events.filter(e=>ids.has(e._calendarId))}
+function pill(ev){const x=document.createElement('div');x.className='g-event';x.style.setProperty('--ec',ev._color);x.textContent=(isAllDay(ev)?'':fmtTime(eventStart(ev))+' ')+(ev.summary||'(No title)');x.title=(ev.summary||'')+' — '+ev._calendarName;return x}
+function renderCalendarEvents(){
+ const t=$('#calendarEvents');if(!state.token){t.className='calendar-surface empty-state';t.textContent='Connect Google in Settings to load calendars.';return}
+ t.className='calendar-surface';t.innerHTML='';
+ if(state.calendarView==='month')renderMonth(t);else if(state.calendarView==='agenda')renderAgenda(t);else renderWeek(t)
+}
+function renderWeek(t){
+ const s=startOfWeek(state.calendarCursor),days=[0,1,2,3,4,5,6].map(i=>addDays(s,i)),last=days[6];
+ $('#calendarRangeTitle').textContent=new Intl.DateTimeFormat([],{month:'short',day:'numeric'}).format(s)+' – '+new Intl.DateTimeFormat([],{month:'short',day:'numeric',year:'numeric'}).format(last);
+ const w=document.createElement('div');w.className='week-cal';
+ const h=document.createElement('div');h.className='week-head';h.innerHTML='<div></div>';days.forEach(d=>{const q=document.createElement('div');q.className='day-head'+(sameDay(d,new Date())?' today':'');q.innerHTML='<span>'+new Intl.DateTimeFormat([],{weekday:'short'}).format(d)+'</span><strong>'+d.getDate()+'</strong>';h.appendChild(q)});w.appendChild(h);
+ const body=document.createElement('div');body.className='week-body';const hours=document.createElement('div');hours.className='hours';for(let i=0;i<24;i++){const a=document.createElement('div');a.textContent=i?new Intl.DateTimeFormat([],{hour:'numeric'}).format(new Date(2000,0,1,i)):'';hours.appendChild(a)}body.appendChild(hours);
+ days.forEach(d=>{const col=document.createElement('div');col.className='day-col'+(sameDay(d,new Date())?' today-col':'');for(let i=0;i<24;i++){const l=document.createElement('div');l.className='hour-line';col.appendChild(l)}
+  selectedEvents().filter(e=>{const st=eventStart(e);return !isAllDay(e)&&sameDay(st,d)}).forEach(e=>{const st=eventStart(e),en=eventEnd(e),m=st.getHours()*60+st.getMinutes(),dur=Math.max(30,(en-st)/60000);const p=pill(e);p.classList.add('timed');p.style.top=(m/1440*100)+'%';p.style.height=(Math.min(dur,1440-m)/1440*100)+'%';col.appendChild(p)});
+  if(sameDay(d,new Date())){const n=new Date(),l=document.createElement('div');l.className='now-line';l.style.top=((n.getHours()*60+n.getMinutes())/1440*100)+'%';col.appendChild(l)}body.appendChild(col)});w.appendChild(body);t.appendChild(w);setTimeout(()=>{body.scrollTop=Math.max(0,(new Date().getHours()-2)*60)},0)
+}
+function renderMonth(t){
+ const c=state.calendarCursor,first=new Date(c.getFullYear(),c.getMonth(),1),s=startOfWeek(first);$('#calendarRangeTitle').textContent=new Intl.DateTimeFormat([],{month:'long',year:'numeric'}).format(first);
+ const m=document.createElement('div');m.className='month-cal';['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(x=>{const h=document.createElement('div');h.className='month-head';h.textContent=x;m.appendChild(h)});
+ for(let i=0;i<42;i++){const d=addDays(s,i),cell=document.createElement('div');cell.className='month-cell'+(d.getMonth()!=first.getMonth()?' outside':'')+(sameDay(d,new Date())?' today':'');const n=document.createElement('div');n.className='date-num';n.textContent=d.getDate();cell.appendChild(n);const es=selectedEvents().filter(e=>sameDay(eventStart(e),d));es.slice(0,4).forEach(e=>cell.appendChild(pill(e)));if(es.length>4){const more=document.createElement('small');more.textContent='+'+(es.length-4)+' more';cell.appendChild(more)}m.appendChild(cell)}t.appendChild(m)
+}
+function renderAgenda(t){
+ const s=new Date(state.calendarCursor);s.setHours(0,0,0,0);$('#calendarRangeTitle').textContent='Schedule · '+new Intl.DateTimeFormat([],{month:'long',year:'numeric'}).format(s);const a=document.createElement('div');a.className='agenda';
+ const es=selectedEvents();if(!es.length){t.className='calendar-surface empty-state';t.textContent='No events in this period.';return}
+ let k='';es.forEach(e=>{const d=eventStart(e),dk=ymd(d);if(dk!==k){k=dk;const h=document.createElement('h3');h.textContent=fmtDate(d);a.appendChild(h)}const r=document.createElement('div');r.className='agenda-row';r.style.setProperty('--ec',e._color);r.innerHTML='<div>'+(isAllDay(e)?'All day':escapeHtml(fmtTime(d)))+'</div><div><strong>'+escapeHtml(e.summary||'(No title)')+'</strong><small>'+escapeHtml(e._calendarName)+'</small></div>';a.appendChild(r)});t.appendChild(a)
+}
+async function moveCal(n){if(state.calendarView==='month')state.calendarCursor=new Date(state.calendarCursor.getFullYear(),state.calendarCursor.getMonth()+n,1);else state.calendarCursor=addDays(state.calendarCursor,n*(state.calendarView==='week'?7:30));if(state.token)await loadCalendarsAndEvents();else renderCalendarEvents()}
+$('#calPrevBtn').addEventListener('click',()=>moveCal(-1));$('#calNextBtn').addEventListener('click',()=>moveCal(1));$('#calTodayBtn').addEventListener('click',async()=>{state.calendarCursor=new Date();if(state.token)await loadCalendarsAndEvents();else renderCalendarEvents()});
+$$('.cal-view').forEach(b=>b.addEventListener('click',async()=>{$$('.cal-view').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.calendarView=b.dataset.view;if(state.token)await loadCalendarsAndEvents();else renderCalendarEvents()}));
 
 async function loadTaskListsAndTasks(){const lists=await api('/tasks/v1/users/@me/lists?maxResults=100');state.taskLists={};for(const wanted of ['Family','Emily Daily','Eric','Shopping']){let list=(lists.items||[]).find(x=>x.title===wanted);if(!list){list=await api('/tasks/v1/users/@me/lists',{method:'POST',body:JSON.stringify({title:wanted})})}const tasks=await api('/tasks/v1/lists/'+encodeURIComponent(list.id)+'/tasks?showCompleted=false&showHidden=false&maxResults=100');state.taskLists[wanted]={...list,tasks:(tasks.items||[]).filter(t=>t.status!=='completed')}}renderTasks()}
 function taskDate(t){return t.due?new Date(t.due):null}
