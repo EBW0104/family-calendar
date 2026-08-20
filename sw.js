@@ -1,10 +1,13 @@
-const CACHE_NAME = 'family-display-v20260820-4';
+const CACHE_NAME = 'family-display-v20260820-5';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=20260820-4',
-  './app.js?v=20260820-4',
-  './manifest.webmanifest'
+  './styles.css?v=20260820-5',
+  './app.js?v=20260820-5',
+  './manifest.webmanifest',
+  './icons/icon-180.png',
+  './icons/icon-192.png',
+  './icons/icon-512.png'
 ];
 
 self.addEventListener('install', event => {

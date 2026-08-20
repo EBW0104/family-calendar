@@ -252,49 +252,13 @@ async function moveCal(n){if(state.calendarView==='month')state.calendarCursor=n
 $('#calPrevBtn').addEventListener('click',()=>moveCal(-1));$('#calNextBtn').addEventListener('click',()=>moveCal(1));$('#calTodayBtn').addEventListener('click',async()=>{state.calendarCursor=new Date();if(state.token)await loadCalendarsAndEvents();else renderCalendarEvents()});
 $$('.cal-view').forEach(b=>b.addEventListener('click',async()=>{$$('.cal-view').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.calendarView=b.dataset.view;if(state.token)await loadCalendarsAndEvents();else renderCalendarEvents()}));
 
-async function loadTaskListsAndTasks(){
- const lists=await api('/tasks/v1/users/@me/lists?maxResults=100');
- state.taskLists={};
-
- for(const wanted of ['Family','Emily Daily','Eric','Shopping']){
-  let list=(lists.items||[]).find(x=>x.title===wanted);
-  if(!list){
-   list=await api('/tasks/v1/users/@me/lists',{
-    method:'POST',
-    body:JSON.stringify({title:wanted})
-   });
-  }
-
-  const tasks=await api('/tasks/v1/lists/'+encodeURIComponent(list.id)+'/tasks?showCompleted=true&showHidden=true&maxResults=100');
-  const serverTasks=(tasks.items||[]);
-
-  // Merge locally remembered completed tasks in case Google temporarily omits them
-  // from the list response immediately after completion.
-  const cacheKey='completedTaskCache:'+wanted;
-  let cached=[];
-  try{cached=JSON.parse(localStorage.getItem(cacheKey)||'[]')}catch(_){cached=[]}
-
-  const byId=new Map(serverTasks.map(t=>[t.id,t]));
-  for(const t of cached){
-   if(t&&t.id&&!byId.has(t.id))byId.set(t.id,t);
-  }
-
-  const merged=[...byId.values()];
-  const completedForCache=merged.filter(t=>t.status==='completed').slice(-200);
-  localStorage.setItem(cacheKey,JSON.stringify(completedForCache));
-
-  state.taskLists[wanted]={...list,tasks:merged};
- }
-
- renderTasks();
-}
-
+async function loadTaskListsAndTasks(){const lists=await api('/tasks/v1/users/@me/lists?maxResults=100');state.taskLists={};for(const wanted of ['Family','Emily Daily','Eric','Shopping']){let list=(lists.items||[]).find(x=>x.title===wanted);if(!list){list=await api('/tasks/v1/users/@me/lists',{method:'POST',body:JSON.stringify({title:wanted})})}const tasks=await api('/tasks/v1/lists/'+encodeURIComponent(list.id)+'/tasks?showCompleted=true&showHidden=true&maxResults=100');state.taskLists[wanted]={...list,tasks:(tasks.items||[])}}renderTasks()}
 function taskDate(t){
  if(!t.due)return null;
  const d=new Date(t.due);
  return new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
 }
-function renderTasks(){renderList('Family','#familyTasks',t=>{const d=taskDate(t);return d&&d>=startOfWeek()&&d<endOfWeek()},true);renderList('Emily Daily','#emilyTasks',t=>{const d=taskDate(t);return !d||ymd(d)===ymd(new Date())},false);renderList('Eric','#ericTasks',()=>true,true);renderList('Shopping','#shoppingTasks',()=>true,false)}
+function renderTasks(){renderList('Family','#familyTasks',t=>{const d=taskDate(t);return !d||(d>=startOfWeek()&&d<endOfWeek())},true);renderList('Emily Daily','#emilyTasks',t=>{const d=taskDate(t);return !d||ymd(d)===ymd(new Date())},false);renderList('Eric','#ericTasks',()=>true,true);renderList('Shopping','#shoppingTasks',()=>true,false)}
 function renderList(name,selector,filter,showDue){
  const el=$(selector),list=state.taskLists[name];
  if(!list){el.innerHTML='<div class="empty-state">Connect Google to load tasks.</div>';return}
@@ -333,43 +297,19 @@ function renderList(name,selector,filter,showDue){
  }
 }
 async function setTaskCompleted(listName,taskId,completed){
- const list=state.taskLists[listName];
- if(!list)return;
-
- const task=(list.tasks||[]).find(t=>t.id===taskId);
- if(!task)return;
-
- const previousStatus=task.status;
- task.status=completed?'completed':'needsAction';
-
- // Re-render immediately so the checked item stays visible and is crossed out.
- renderTasks();
-
  try{
-  const updated=await api('/tasks/v1/lists/'+encodeURIComponent(list.id)+'/tasks/'+encodeURIComponent(taskId),{
+  const list=state.taskLists[listName];
+  await api('/tasks/v1/lists/'+encodeURIComponent(list.id)+'/tasks/'+encodeURIComponent(taskId),{
    method:'PATCH',
    body:JSON.stringify({status:completed?'completed':'needsAction'})
   });
-
-  // Keep Google's returned task data, but do not reload the whole list.
-  const i=list.tasks.findIndex(t=>t.id===taskId);
-  if(i>=0) list.tasks[i]={...list.tasks[i],...updated,status:completed?'completed':'needsAction'};
-
-  const cacheKey='completedTaskCache:'+listName;
-  const completedTasks=(list.tasks||[]).filter(t=>t.status==='completed').slice(-200);
-  localStorage.setItem(cacheKey,JSON.stringify(completedTasks));
-
-  renderTasks();
- }catch(e){
-  task.status=previousStatus;
-  renderTasks();
-  setStatus(e.message,false,true);
- }
+  await loadTaskListsAndTasks();
+ }catch(e){setStatus(e.message,false,true)}
 }
 
 $$('.add-task').forEach(btn=>btn.addEventListener('click',()=>openTaskDialog(btn.dataset.list)));
-function openTaskDialog(name){$('#taskListName').value=name;$('#taskTitle').value='';$('#taskDue').value='';$('#taskDialogTitle').textContent=name==='Shopping'?'Add shopping item':'Add to '+name;const help=$('#taskHelp');if(name==='Eric'){help.textContent='Eric tasks require an expiration/due date.';$('#taskDue').required=true}else if(name==='Emily Daily'){help.textContent='If no date is selected, the task is treated as a daily item for today.';$('#taskDue').required=false;$('#taskDue').value=ymd(new Date())}else{help.textContent='';$('#taskDue').required=false}$('#taskDialog').showModal()}
-$('#taskForm').addEventListener('submit',async(e)=>{e.preventDefault();const name=$('#taskListName').value,title=$('#taskTitle').value.trim(),due=$('#taskDue').value;if(!title)return;if(name==='Eric'&&!due){$('#taskHelp').textContent='Please choose an expiration/due date for Eric.';return}try{const list=state.taskLists[name];if(!list)throw new Error('Connect Google first.');const payload={title};if(due)payload.due=new Date(due+'T12:00:00Z').toISOString();await api('/tasks/v1/lists/'+encodeURIComponent(list.id)+'/tasks',{method:'POST',body:JSON.stringify(payload)});$('#taskDialog').close();await loadTaskListsAndTasks()}catch(err){setStatus(err.message,false,true)}});
+function openTaskDialog(name){$('#taskListName').value=name;$('#taskTitle').value='';$('#taskDue').value='';$('#taskDue').required=false;$('#taskDialogTitle').textContent=name==='Shopping'?'Add shopping item':'Add to '+name;const help=$('#taskHelp');if(name==='Emily Daily'||name==='Eric'){help.textContent='Due date is optional. If no date is selected, this item is treated as a today/daily task.'}else if(name==='Family'){help.textContent='Due date is optional. Undated items remain visible in the Family list.'}else{help.textContent=''}$('#taskDialog').showModal()}
+$('#taskForm').addEventListener('submit',async(e)=>{e.preventDefault();const name=$('#taskListName').value,title=$('#taskTitle').value.trim(),due=$('#taskDue').value;if(!title)return;try{const list=state.taskLists[name];if(!list)throw new Error('Connect Google first.');const payload={title};if(due)payload.due=new Date(due+'T12:00:00Z').toISOString();await api('/tasks/v1/lists/'+encodeURIComponent(list.id)+'/tasks',{method:'POST',body:JSON.stringify(payload)});$('#taskDialog').close();await loadTaskListsAndTasks()}catch(err){setStatus(err.message,false,true)}});
 
 function openDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open('FamilyDisplayDB',1);req.onupgradeneeded=()=>{req.result.createObjectStore('photos',{keyPath:'id',autoIncrement:true})};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
 async function loadPhotos(){try{const db=await openDB();const tx=db.transaction('photos','readonly');const req=tx.objectStore('photos').getAll();state.photos=await new Promise((r,j)=>{req.onsuccess=()=>r(req.result||[]);req.onerror=()=>j(req.error)});updatePhotoCount();rotatePhoto()}catch(e){console.warn(e)}}
@@ -382,5 +322,5 @@ function restartPhotoTimer(){clearInterval(state.photoTimer);const sec=Number(lo
 function renderAll(){renderCalendar();renderTasks()}
 function escapeHtml(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
 
-if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=20260820-4').catch(console.warn);
+if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=20260820-5').catch(console.warn);
 window.addEventListener('load',()=>{loadPhotos();restartPhotoTimer();resetIdleTimer();setTimeout(()=>{if(localStorage.getItem('googleClientId')) initGoogleClient()},900)});

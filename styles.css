@@ -17,3 +17,13 @@
 .task-completed{opacity:.58}
 .task-completed .task-title,.task-completed .task-due{text-decoration:line-through}
 .task-completed input[type=checkbox]{opacity:.8}
+
+/* iPad Home Screen / standalone safe-area support */
+html,body,#app{min-height:100vh;min-height:100dvh}
+body{overscroll-behavior:none;-webkit-text-size-adjust:100%}
+.view{min-height:100vh;min-height:100dvh}
+.idle-view{height:100vh;height:100dvh}
+.clock-wrap{min-height:100vh;min-height:100dvh;padding-top:max(32px,env(safe-area-inset-top));padding-right:max(32px,env(safe-area-inset-right));padding-bottom:max(32px,env(safe-area-inset-bottom));padding-left:max(32px,env(safe-area-inset-left))}
+.tap-hint{bottom:max(34px,calc(env(safe-area-inset-bottom) + 16px))}
+.dashboard{min-height:100vh;min-height:100dvh;padding-top:max(22px,env(safe-area-inset-top));padding-right:max(22px,env(safe-area-inset-right));padding-bottom:max(22px,env(safe-area-inset-bottom));padding-left:max(22px,env(safe-area-inset-left))}
+@media(max-width:900px){.dashboard{padding-top:max(14px,env(safe-area-inset-top));padding-right:max(14px,env(safe-area-inset-right));padding-bottom:max(14px,env(safe-area-inset-bottom));padding-left:max(14px,env(safe-area-inset-left))}}
