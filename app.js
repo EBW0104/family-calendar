@@ -277,5 +277,5 @@ function restartPhotoTimer(){clearInterval(state.photoTimer);const sec=Number(lo
 function renderAll(){renderCalendar();renderTasks()}
 function escapeHtml(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
 
-if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(console.warn);
+if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=20260820-2').catch(console.warn);
 window.addEventListener('load',()=>{loadPhotos();restartPhotoTimer();resetIdleTimer();setTimeout(()=>{if(localStorage.getItem('googleClientId')) initGoogleClient()},900)});
