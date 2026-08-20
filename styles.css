@@ -13,3 +13,7 @@
   .all-day-row{background:#1f2937;border-color:#374151}
   .all-day-cell{border-color:#374151}
 }
+
+.task-completed{opacity:.58}
+.task-completed .task-title,.task-completed .task-due{text-decoration:line-through}
+.task-completed input[type=checkbox]{opacity:.8}
